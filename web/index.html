@@ -1,0 +1,31 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+  <meta charset="UTF-8">
+  <title>IA : Reconnaissance & Génération</title>
+  <link rel="stylesheet" href="style.css">
+  <script src="https://cdn.jsdelivr.net/npm/onnxruntime-web/dist/ort.min.js"></script>
+</head>
+<body>
+
+  <header>
+    <h1>🧠 Intelligence Artificielle : Projets IIM</h1>
+    <p>Projet 1 : Reconnaissance de chiffres</p>
+  </header>
+
+  <main>
+    <section>
+      <h2>✏️ Projet 1 : Reconnaissance de chiffres manuscrits</h2>
+      <p>Dessine un chiffre (0 à 9) dans le carré ci-dessous :</p>
+      <canvas id="canvas" width="280" height="280"></canvas><br>
+      <button onclick="predict()">Prédire</button>
+      <button onclick="clearCanvas()">Effacer</button>
+      <p id="result">Résultat : </p>
+    </section>
+  </main>
+
+  <footer>&copy; 2025 - IIM Intelligence Artificielle</footer>
+
+  <script src="app.js"></script>
+</body>
+</html>
