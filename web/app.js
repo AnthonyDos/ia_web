@@ -16,15 +16,14 @@ function draw(e) {
 }
 
 function clearCanvas() {
-  ctx.fillStyle = 'white';           // Fond blanc
+  ctx.fillStyle = 'white';          
   ctx.fillRect(0, 0, canvas.width, canvas.height);
   document.getElementById('result').textContent = "Résultat : ";
 }
-clearCanvas(); // Initialisation fond blanc
+clearCanvas(); 
 
 let session = null;
 
-// Charger la session ONNX une fois
 async function loadModel() {
   session = await ort.InferenceSession.create('mnist_model.onnx');
   console.log("Modèle ONNX chargé");
@@ -37,14 +36,12 @@ async function predict() {
     return;
   }
 
-  // Canvas temporaire 28x28 pour redimensionner proprement
   const tmpCanvas = document.createElement('canvas');
   tmpCanvas.width = 28;
   tmpCanvas.height = 28;
   const tmpCtx = tmpCanvas.getContext('2d');
   tmpCtx.imageSmoothingEnabled = false;
 
-  // Copier/redimensionner le dessin dans tmpCanvas 28x28
   tmpCtx.drawImage(canvas, 0, 0, 28, 28);
 
   const imageData = tmpCtx.getImageData(0, 0, 28, 28);
@@ -57,10 +54,8 @@ async function predict() {
     const b = data[i * 4 + 2];
     const a = data[i * 4 + 3] / 255;
 
-    // Calcul luminosité moyenne pondérée par alpha
     const lum = (r + g + b) / 3 * a + 255 * (1 - a);
 
-    // Inversion (fond blanc=0, trait noir=1) + normalisation
     input[i] = (255 - lum) / 255;
   }
 
@@ -82,84 +77,21 @@ async function predict() {
   }
 }
 
+
 // === Projet 2 : NLP ===
-
-// 1. Génération de texte (chaîne de Markov)
-const corpus = `
-  La vie est belle. Le soleil brille. Les étoiles dansent dans le ciel.
-  Le vent souffle fort. La nuit est calme. Les rêves illuminent l'esprit.
-  L'amour réchauffe le cœur. Le silence parle parfois plus que les mots.
-`;
-
-function buildMarkovChain(text) {
-  const words = text.trim().split(/\s+/);
-  const chain = {};
-  for (let i = 0; i < words.length - 1; i++) {
-    const w = words[i].toLowerCase();
-    const next = words[i + 1].toLowerCase();
-    if (!chain[w]) chain[w] = [];
-    chain[w].push(next);
-  }
-  return chain;
-}
-
-const markovChain = buildMarkovChain(corpus);
-
-function generateMarkovText(start = "la", maxWords = 20) {
-  let current = start.toLowerCase();
-  let result = [current];
-  for (let i = 0; i < maxWords - 1; i++) {
-    const nextWords = markovChain[current];
-    if (!nextWords || nextWords.length === 0) break;
-    current = nextWords[Math.floor(Math.random() * nextWords.length)];
-    result.push(current);
-  }
-  return result.join(" ") + ".";
-}
+// Simulation simple de génération de texte
 
 function generateText() {
-  const input = document.getElementById("inputText").value.trim();
-  const seed = input !== "" ? input.split(/\s+/).pop() : "la";
-  const sentence = generateMarkovText(seed, 20);
-  document.getElementById("generatedText").textContent = "Texte généré : " + sentence;
-}
+  const input = document.getElementById('text-input').value.toLowerCase();
+  const generated = input;
 
-// 2. Analyse de sentiment basique
-const positiveWords = ["amour", "beau", "joie", "paix", "bonheur", "lumière", "réussite"];
-const negativeWords = ["triste", "peur", "douleur", "colère", "solitude", "noir"];
+  // Alphabet limité pour correspondre au corpus
+  const alphabet = " abcdefghijklmnopqrstuvwxyzéàèùç";
+  const randomChar = () => alphabet[Math.floor(Math.random() * alphabet.length)];
 
-function analyzeSentiment() {
-  const input = document.getElementById("inputText").value.toLowerCase();
-  const words = input.split(/\s+/);
-  let score = 0;
-
-  for (const word of words) {
-    if (positiveWords.includes(word)) score++;
-    if (negativeWords.includes(word)) score--;
+  let result = generated;
+  for (let i = 0; i < 100; i++) {
+    result += randomChar();
   }
 
-  let sentiment = "neutre";
-  if (score > 0) sentiment = "positif";
-  else if (score < 0) sentiment = "négatif";
-
-  document.getElementById("sentimentResult").textContent = `Analyse de sentiment : ${sentiment} (${score})`;
-}
-
-// 3. Traduction FR → EN simplifiée
-const frToEn = {
-  "bonjour": "hello",
-  "chat": "cat",
-  "chien": "dog",
-  "amour": "love",
-  "soleil": "sun",
-  "nuit": "night",
-  "beau": "beautiful",
-  "fleur": "flower"
-};
-
-function translateText() {
-  const input = document.getElementById("inputText").value.toLowerCase();
-  const words = input.split(/\s+/);
-  const translated = words.map(word => frToEn[word] || `[${word}]`);
-  document.getElementById("translationResult").textContent = "Traduction : " + translated.join(" ");
-}
+  document.getElementById('generated-text').textContent = result;
