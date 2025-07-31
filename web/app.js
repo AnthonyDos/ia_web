@@ -79,19 +79,126 @@ async function predict() {
 
 
 // === Projet 2 : NLP ===
-// Simulation simple de génération de texte
+let char2idx = {};
+let idx2char = {};
+const seqLength = 10;
+let session1 = null;
+const vocabUrl = "vocab.json";
+const onnxModelUrl = "rnn_text_gen.onnx";
 
-function generateText() {
-  const input = document.getElementById('text-input').value.toLowerCase();
-  const generated = input;
+fetch(vocabUrl)
+  .then(res => res.json())
+  .then(data => {
+    char2idx = data.char2idx;
+    idx2char = Object.fromEntries(
+      Object.entries(data.idx2char).map(([k, v]) => [parseInt(k), v])
+    );
+    console.log("Vocabulaire chargé :", char2idx);
+  })
+  .catch(err => console.error("Erreur lors du chargement du vocabulaire :", err));
 
-  // Alphabet limité pour correspondre au corpus
-  const alphabet = " abcdefghijklmnopqrstuvwxyzéàèùç";
-  const randomChar = () => alphabet[Math.floor(Math.random() * alphabet.length)];
+async function loadModel1() {
+  try {
+    session1 = await ort.InferenceSession.create(onnxModelUrl);
+    console.log("Modèle ONNX chargé");
+    console.log("Inputs du modèle ONNX :", session1.inputNames);
+    console.log("Outputs du modèle ONNX :", session1.outputNames);
+  } catch (err) {
+    console.error("Échec du chargement du modèle ONNX :", err);
+  }
+}
+loadModel1();
 
-  let result = generated;
-  for (let i = 0; i < 100; i++) {
-    result += randomChar();
+function softmax(logits) {
+  const maxLogit = Math.max(...logits);
+  const exps = logits.map(l => Math.exp(l - maxLogit));
+  const sumExps = exps.reduce((a, b) => a + b, 0);
+  return exps.map(e => e / sumExps);
+}
+
+function sampleFromProbs(probs, temperature = 1.0) {
+  const adjusted = probs.map(p => Math.pow(p, 1 / temperature));
+  const sum = adjusted.reduce((a, b) => a + b, 0);
+  const normalized = adjusted.map(p => p / sum);
+
+  let r = Math.random();
+  let cumSum = 0;
+  for (let i = 0; i < normalized.length; i++) {
+    cumSum += normalized[i];
+    if (r < cumSum) return i;
+  }
+  return normalized.length - 1; 
+}
+
+async function generateText() {
+  if (!session1) {
+    alert("Le modèle n'est pas encore chargé, veuillez patienter.");
+    return;
   }
 
-  document.getElementById('generated-text').textContent = result;
+  const inputText = document.getElementById('text-input').value.toLowerCase().trim();
+  if (inputText.length < seqLength) {
+    alert("Merci d'écrire au moins " + seqLength + " caractères.");
+    return;
+  }
+
+  const rawChars = inputText.slice(-seqLength).padStart(seqLength, ' ').split('');
+  let inputSeq = rawChars.map(ch => char2idx.hasOwnProperty(ch) ? char2idx[ch] : 0);
+  console.log("Sequence entrée :", inputSeq.map(i => idx2char[i]).join(""));
+
+  let generated = inputText;
+  const temperature = parseFloat(document.getElementById("temp").value);
+
+  const hiddenSize = 512;  
+  const numLayers = 1;     
+  const batchSize = 1;
+
+  let h0 = new Float32Array(numLayers * batchSize * hiddenSize).fill(0);
+  let c0 = new Float32Array(numLayers * batchSize * hiddenSize).fill(0);
+
+  const inputNames = session1.inputNames;
+  const outputNames = session1.outputNames;
+  console.log("Noms des inputs :", inputNames);
+  console.log("Noms des outputs :", outputNames);
+
+  const inputName = inputNames.find(n => n.toLowerCase().includes('input')) || inputNames[0];
+  const hName = inputNames.find(n => n.toLowerCase().includes('h')) || null;
+  const cName = inputNames.find(n => n.toLowerCase().includes('c')) || null;
+
+  const hOutName = hName ? outputNames.find(n => n.includes(hName.replace(/0/, '1'))) : null;
+  const cOutName = cName ? outputNames.find(n => n.includes(cName.replace(/0/, '1'))) : null;
+
+  for (let i = 0; i < 100; i++) {
+    const tensorInput = new ort.Tensor('int64', BigInt64Array.from(inputSeq.map(n => BigInt(n))), [batchSize, seqLength]);
+
+    let feeds = {};
+    feeds[inputName] = tensorInput;
+    if (hName) feeds[hName] = new ort.Tensor('float32', h0, [numLayers, batchSize, hiddenSize]);
+    if (cName) feeds[cName] = new ort.Tensor('float32', c0, [numLayers, batchSize, hiddenSize]);
+
+    let results;
+    try {
+      results = await session1.run(feeds);
+    } catch (err) {
+      console.error("Erreur lors de l'inférence :", err);
+      document.getElementById('generated-text').textContent = "Erreur lors de l'inférence ONNX.";
+      return;
+    }
+
+    const logits = Array.from(results[outputNames[0]].data);
+
+    if (hOutName) h0 = results[hOutName].data;
+    if (cOutName) c0 = results[cOutName].data;
+
+    const probs = softmax(logits);
+    const nextIdx = sampleFromProbs(probs, temperature);
+    const nextChar = idx2char[nextIdx] || '?';
+
+    generated += nextChar;
+    inputSeq.push(nextIdx);
+    inputSeq = inputSeq.slice(-seqLength);
+  }
+
+  document.getElementById('generated-text').textContent = "Résultat : " + generated;
+}
+
